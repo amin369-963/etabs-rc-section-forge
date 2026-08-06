@@ -22,6 +22,11 @@ jobs:
           import base64
           import hashlib
 
+          def decode_part(part: Path) -> bytes:
+              encoded = "".join(part.read_text(encoding="ascii").split())
+              encoded += "=" * (-len(encoded) % 4)
+              return base64.b64decode(encoded, validate=True)
+
           def assemble(pattern: str, output: str, expected_sha256: str) -> None:
               parts = sorted(Path("bootstrap_parts").glob(pattern))
               if not parts:
@@ -31,8 +36,7 @@ jobs:
               decoded_parts = []
               for part in parts:
                   print(f"  - {part}")
-                  encoded = part.read_text(encoding="ascii").strip()
-                  decoded_parts.append(base64.b64decode(encoded, validate=True))
+                  decoded_parts.append(decode_part(part))
 
               data = b"".join(decoded_parts)
               actual_sha256 = hashlib.sha256(data).hexdigest()
