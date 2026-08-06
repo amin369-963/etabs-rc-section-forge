@@ -1,1 +1,0 @@
-Direct upload will replace the temporary bootstrap workflow.
