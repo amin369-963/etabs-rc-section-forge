@@ -28,14 +28,13 @@ jobs:
                   raise SystemExit(f"No files matched: bootstrap_parts/{pattern}")
 
               print(f"Assembling {output} from {len(parts)} part(s):")
+              decoded_parts = []
               for part in parts:
                   print(f"  - {part}")
+                  encoded = part.read_text(encoding="ascii").strip()
+                  decoded_parts.append(base64.b64decode(encoded, validate=True))
 
-              encoded = "".join(
-                  part.read_text(encoding="ascii").strip()
-                  for part in parts
-              )
-              data = base64.b64decode(encoded, validate=True)
+              data = b"".join(decoded_parts)
               actual_sha256 = hashlib.sha256(data).hexdigest()
               print(f"SHA-256 {output}: {actual_sha256}")
 
