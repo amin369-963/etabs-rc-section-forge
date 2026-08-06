@@ -1,0 +1,59 @@
+name: Assemble source files
+
+on:
+  push:
+    paths:
+      - ".github/workflows/assemble-source.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Reconstruct source files
+        shell: python
+        run: |
+          from pathlib import Path
+          import base64
+          import hashlib
+
+          def assemble(pattern: str, output: str, expected_sha256: str) -> None:
+              parts = sorted(Path("bootstrap_parts").glob(pattern))
+              if not parts:
+                  raise SystemExit(f"No files matched {pattern}")
+              encoded = "".join(part.read_text(encoding="ascii").strip() for part in parts)
+              data = base64.b64decode(encoded, validate=True)
+              actual = hashlib.sha256(data).hexdigest()
+              if actual != expected_sha256:
+                  raise SystemExit(
+                      f"SHA-256 mismatch for {output}: expected {expected_sha256}, got {actual}"
+                  )
+              Path(output).write_bytes(data)
+
+          assemble(
+              "main_*.b64",
+              "etabs_rc_section_builder.py",
+              "3ac0fbffb46c525545e6b7075f9c63d4c5d4d2ddad752ad21ad929328875132e",
+          )
+          assemble(
+              "test_*.b64",
+              "test_etabs_rc_section_builder.py",
+              "59bc03ab13f629d54e1b02c5235865aa3d301eef8fc8f56add3d566777a9dabe",
+          )
+
+      - name: Run unit tests
+        run: python -m unittest -v test_etabs_rc_section_builder.py
+
+      - name: Commit reconstructed source
+        run: |
+          rm -rf bootstrap_parts
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add etabs_rc_section_builder.py test_etabs_rc_section_builder.py bootstrap_parts
+          git commit -m "Add ETABS section builder source and tests"
+          git push
