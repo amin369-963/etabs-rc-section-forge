@@ -2,9 +2,6 @@ name: Assemble source files
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - ".github/workflows/assemble-source.yml"
 
 permissions:
   contents: write
@@ -17,8 +14,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Reconstruct source files
-        shell: python
+        shell: bash
         run: |
+          set -euo pipefail
+          python - <<'PY'
           from pathlib import Path
           import base64
           import hashlib
@@ -26,14 +25,26 @@ jobs:
           def assemble(pattern: str, output: str, expected_sha256: str) -> None:
               parts = sorted(Path("bootstrap_parts").glob(pattern))
               if not parts:
-                  raise SystemExit(f"No files matched {pattern}")
-              encoded = "".join(part.read_text(encoding="ascii").strip() for part in parts)
+                  raise SystemExit(f"No files matched: bootstrap_parts/{pattern}")
+
+              print(f"Assembling {output} from {len(parts)} part(s):")
+              for part in parts:
+                  print(f"  - {part}")
+
+              encoded = "".join(
+                  part.read_text(encoding="ascii").strip()
+                  for part in parts
+              )
               data = base64.b64decode(encoded, validate=True)
-              actual = hashlib.sha256(data).hexdigest()
-              if actual != expected_sha256:
+              actual_sha256 = hashlib.sha256(data).hexdigest()
+              print(f"SHA-256 {output}: {actual_sha256}")
+
+              if actual_sha256 != expected_sha256:
                   raise SystemExit(
-                      f"SHA-256 mismatch for {output}: expected {expected_sha256}, got {actual}"
+                      f"SHA-256 mismatch for {output}: "
+                      f"expected {expected_sha256}, got {actual_sha256}"
                   )
+
               Path(output).write_bytes(data)
 
           assemble(
@@ -46,15 +57,24 @@ jobs:
               "test_etabs_rc_section_builder.py",
               "59bc03ab13f629d54e1b02c5235865aa3d301eef8fc8f56add3d566777a9dabe",
           )
+          PY
 
       - name: Run unit tests
         run: python -m unittest -v test_etabs_rc_section_builder.py
 
       - name: Commit reconstructed source
+        shell: bash
         run: |
+          set -euo pipefail
           rm -rf bootstrap_parts
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
+
+          if git diff --cached --quiet; then
+            echo "No repository changes to commit."
+            exit 0
+          fi
+
           git commit -m "Add ETABS section builder source and tests"
           git push
