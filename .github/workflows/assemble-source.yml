@@ -1,6 +1,7 @@
 name: Assemble source files
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - ".github/workflows/assemble-source.yml"
@@ -54,6 +55,6 @@ jobs:
           rm -rf bootstrap_parts
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add etabs_rc_section_builder.py test_etabs_rc_section_builder.py bootstrap_parts
+          git add -A
           git commit -m "Add ETABS section builder source and tests"
           git push
